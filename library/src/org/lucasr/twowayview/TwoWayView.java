@@ -140,6 +140,9 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private boolean mIsVertical;
 
+	private boolean mSelectionInCenter;
+	private int mCenter;
+
 	private boolean mItemsMatchParent;
 	private int mItemMargin;
 
@@ -430,6 +433,15 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		updateScrollbarsDirection();
 	}
 
+	public void setSelectionInCenter(boolean center) {
+		mSelectionInCenter = center;
+		invalidate();
+	}
+
+	public boolean getSelectionInCenter() {
+		return mSelectionInCenter;
+	}
+
 	public void setItemsMatchParent(boolean match) {
 		mItemsMatchParent = match;
 	}
@@ -445,6 +457,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		}
 
 		mIsVertical = isVertical;
+
+		mCenter = (mIsVertical ? getHeight() / 2 : getWidth() / 2);
 
 		updateScrollbarsDirection();
 		resetState();
@@ -3197,7 +3211,16 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		} else {
 			size = getWidth() - paddingRight - paddingLeft;
 		}
-
+		/*
+		 * for mSelectionInCenter -- adjust start and end for first/last items
+		 * so the could be scrolled to the center of the view
+		 */
+		final int center = mCenter;
+		final int maxStart = (mIsVertical ? center - first.getHeight() / 2
+				: center - first.getWidth() / 2);
+		final int maxEnd = (mIsVertical ? center + last.getHeight() / 2
+				: center + last.getWidth() / 2);
+		/* / */
 		if (incrementalDelta < 0) {
 			incrementalDelta = Math.max(-(size - 1), incrementalDelta);
 		} else {
@@ -3206,10 +3229,19 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		final int firstPosition = mFirstPosition;
 
-		final boolean cannotScrollDown = (firstPosition == 0
-				&& firstStart >= paddingStart && incrementalDelta >= 0);
-		final boolean cannotScrollUp = (firstPosition + childCount == mItemCount
-				&& lastEnd <= end && incrementalDelta <= 0);
+		final boolean cannotScrollDown;
+		final boolean cannotScrollUp;
+		/* makes the first / last view scrollable to the center */
+		if (mSelectionInCenter) {
+			cannotScrollDown = (firstPosition == 0 && firstStart >= maxStart && incrementalDelta >= 0);
+			cannotScrollUp = (firstPosition + childCount == mItemCount
+					&& lastEnd <= maxEnd && incrementalDelta <= 0);
+		} else {
+			cannotScrollDown = (firstPosition == 0
+					&& firstStart >= paddingStart && incrementalDelta >= 0);
+			cannotScrollUp = (firstPosition + childCount == mItemCount
+					&& lastEnd <= end && incrementalDelta <= 0);
+		}
 
 		if (cannotScrollDown || cannotScrollUp) {
 			return incrementalDelta != 0;
@@ -3218,6 +3250,21 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		final boolean inTouchMode = isInTouchMode();
 		if (inTouchMode) {
 			hideSelector();
+		}
+		/*
+		 * when the first & last items are visible they can be scrolled too
+		 * much, adjust the scroll amount so the edges will be aligned with the
+		 * center of the list
+		 */
+		if (mSelectionInCenter) {
+			if (mFirstPosition == 0 && incrementalDelta > 0
+					&& firstStart + incrementalDelta > maxStart) {
+				incrementalDelta = maxStart - firstStart;
+			} else if (mFirstPosition + childCount == mItemCount
+					&& incrementalDelta < 0
+					&& lastEnd + incrementalDelta < maxEnd) {
+				incrementalDelta = maxEnd - lastEnd;
+			}
 		}
 
 		int start = 0;
@@ -3875,6 +3922,13 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	public void scrollBy(int offset) {
 		scrollListItemsBy(offset);
+	}
+
+	@Override
+	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+		super.onSizeChanged(w, h, oldw, oldh);
+
+		mCenter = (mIsVertical ? h / 2 : w / 2);
 	}
 
 	@Override
@@ -5453,8 +5507,15 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		// This is bottom of our drawable area
 		final int start = (mIsVertical ? getPaddingTop() : getPaddingLeft());
-		final int end = (mIsVertical ? getHeight() - getPaddingBottom()
-				: getWidth() - getPaddingRight());
+		final int end;
+		if (mSelectionInCenter && lastPosition == mItemCount - 1) {
+			final int center = mCenter;
+			end = (mIsVertical ? center + lastChild.getHeight() / 2 : center
+					+ lastChild.getWidth() / 2);
+		} else {
+			end = (mIsVertical ? getHeight() - getPaddingBottom() : getWidth()
+					- getPaddingRight());
+		}
 
 		// This is how far the end edge of the last view is from the end of the
 		// drawable area
@@ -5503,7 +5564,14 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		final View first = getChildAt(0);
 		final int firstStart = (mIsVertical ? first.getTop() : first.getLeft());
 
-		final int start = (mIsVertical ? getPaddingTop() : getPaddingLeft());
+		final int start;
+		if (mSelectionInCenter && mFirstPosition == 0) {
+			final int center = mCenter;
+			start = (mIsVertical ? center - first.getHeight() / 2 : center
+					- first.getWidth() / 2);
+		} else {
+			start = (mIsVertical ? getPaddingTop() : getPaddingLeft());
+		}
 
 		final int end;
 		if (mIsVertical) {
@@ -5561,19 +5629,40 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		final View firstChild = getChildAt(0);
 
 		int delta;
-		if (mIsVertical) {
-			delta = firstChild.getTop() - getPaddingTop() - mItemMargin;
+
+		final boolean allowCenter = mSelectionInCenter && mFirstPosition == 0;
+		if (allowCenter) {
+			final int center = mCenter;
+
+			if (mIsVertical)
+				delta = firstChild.getTop() - center - firstChild.getHeight()
+						/ 2;
+			else
+				delta = firstChild.getLeft() - center - firstChild.getWidth()
+						/ 2;
+			if (delta < center) {
+				// We only are looking to see if we are too low, not too high
+				delta = center;
+			}
+
+			if (delta != center) {
+				offsetChildren(-delta);
+			}
 		} else {
-			delta = firstChild.getLeft() - getPaddingLeft() - mItemMargin;
-		}
+			if (mIsVertical) {
+				delta = firstChild.getTop() - getPaddingTop() - mItemMargin;
+			} else {
+				delta = firstChild.getLeft() - getPaddingLeft() - mItemMargin;
+			}
 
-		if (delta < 0) {
-			// We only are looking to see if we are too low, not too high
-			delta = 0;
-		}
+			if (delta < 0) {
+				// We only are looking to see if we are too low, not too high
+				delta = 0;
+			}
 
-		if (delta != 0) {
-			offsetChildren(-delta);
+			if (delta != 0) {
+				offsetChildren(-delta);
+			}
 		}
 	}
 
