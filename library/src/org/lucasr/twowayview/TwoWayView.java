@@ -4282,13 +4282,21 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				break;
 
 			case LAYOUT_FORCE_BOTTOM:
-				selected = fillBefore(mItemCount - 1, end);
+				if (mSelectionInCenter) {
+					selected = fillBefore(mItemCount - 1, mCenter);
+				} else {
+					selected = fillBefore(mItemCount - 1, end);
+				}
 				adjustViewsStartOrEnd();
 				break;
 
 			case LAYOUT_FORCE_TOP:
 				mFirstPosition = 0;
-				selected = fillFromOffset(start);
+				if (mSelectionInCenter) {
+					selected = fillFromOffset(mCenter);
+				} else {
+					selected = fillFromOffset(start);
+				}
 				adjustViewsStartOrEnd();
 				break;
 
@@ -5363,6 +5371,22 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			boolean isSelected = (pos == mSelectedPosition);
 			View child = makeAndAddView(pos, nextOffset, false, isSelected);
 
+			/*
+			 * if putting the last item in the center , compensate for view size
+			 * so the view center is aligned with list center.
+			 */
+			if (mSelectionInCenter && nextOffset == mCenter
+					&& pos == mItemCount - 1) {
+				final int offset;
+				if (mIsVertical) {
+					offset = child.getMeasuredHeight() / 2;
+					child.offsetTopAndBottom(-offset);
+				} else {
+					offset = child.getMeasuredWidth() / 2;
+					child.offsetLeftAndRight(-offset);
+				}
+			}
+
 			if (mIsVertical) {
 				nextOffset = child.getTop() - mDividerSize;
 			} else {
@@ -5391,6 +5415,21 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			boolean selected = (pos == mSelectedPosition);
 
 			View child = makeAndAddView(pos, nextOffset, true, selected);
+
+			/*
+			 * if putting the first item in the center , compensate for view
+			 * size so the view center is aligned with list center.
+			 */
+			if (mSelectionInCenter && nextOffset == mCenter && pos == 0) {
+				final int offset;
+				if (mIsVertical) {
+					offset = child.getMeasuredHeight() / 2;
+					child.offsetTopAndBottom(-offset);
+				} else {
+					offset = child.getMeasuredWidth() / 2;
+					child.offsetLeftAndRight(-offset);
+				}
+			}
 
 			if (mIsVertical) {
 				nextOffset = child.getBottom() + mDividerSize;
@@ -5478,6 +5517,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			int selectedWidth = selected.getMeasuredWidth();
 			if (selectedWidth <= size) {
 				selected.offsetLeftAndRight((size - selectedWidth) / 2);
+			}
+		}
+		/* give another push so the view center is in the center */
+		if (mSelectionInCenter) {
+			final int offset;
+			if (mIsVertical) {
+				offset = selected.getMeasuredHeight() / 2;
+				selected.offsetTopAndBottom(-offset);
+			} else {
+				offset = selected.getMeasuredWidth() / 2;
+				selected.offsetLeftAndRight(-offset);
 			}
 		}
 
