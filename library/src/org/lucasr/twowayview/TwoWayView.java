@@ -139,6 +139,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private boolean mIsVertical;
 
+	private boolean mItemsMatchParent;
 	private int mItemMargin;
 
 	private boolean mInLayout;
@@ -351,6 +352,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		mScroller = new Scroller(context);
 
 		mIsVertical = true;
+		mItemsMatchParent = false;
 
 		mItemsCanFocus = false;
 
@@ -423,6 +425,14 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		a.recycle();
 
 		updateScrollbarsDirection();
+	}
+
+	public void setItemsMatchParent(boolean match) {
+		mItemsMatchParent = match;
+	}
+
+	public boolean getItemsMatchParent() {
+		return mItemsMatchParent;
 	}
 
 	public void setOrientation(Orientation orientation) {
@@ -3928,10 +3938,18 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			heightSize = measureHeightOfChildren(widthMeasureSpec, 0,
 					NO_POSITION, heightSize, -1);
 		}
+		if (mIsVertical && widthMode == MeasureSpec.AT_MOST) {
+			widthSize = measureWidthOfChildrenMax(heightMeasureSpec, 0,
+					NO_POSITION, widthSize);
+		}
 
 		if (!mIsVertical && widthMode == MeasureSpec.AT_MOST) {
 			widthSize = measureWidthOfChildren(heightMeasureSpec, 0,
 					NO_POSITION, widthSize, -1);
+		}
+		if (!mIsVertical && heightMode == MeasureSpec.AT_MOST) {
+			heightSize = measureHeightOfChildrenMax(widthMeasureSpec, 0,
+					NO_POSITION, heightSize);
 		}
 
 		setMeasuredDimension(widthSize, heightSize);
@@ -4712,7 +4730,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private int getChildWidthMeasureSpec(LayoutParams lp) {
 		if (!mIsVertical && lp.width == LayoutParams.WRAP_CONTENT) {
 			return MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
-		} else if (mIsVertical) {
+		} else if (mItemsMatchParent && mIsVertical) {
 			final int maxWidth = getWidth() - getPaddingLeft()
 					- getPaddingRight();
 			return MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.EXACTLY);
@@ -4724,7 +4742,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private int getChildHeightMeasureSpec(LayoutParams lp) {
 		if (mIsVertical && lp.height == LayoutParams.WRAP_CONTENT) {
 			return MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
-		} else if (!mIsVertical) {
+		} else if (mItemsMatchParent && !mIsVertical) {
 			final int maxHeight = getHeight() - getPaddingTop()
 					- getPaddingBottom();
 			return MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.EXACTLY);
@@ -4768,12 +4786,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		final int widthMeasureSpec;
 		final int heightMeasureSpec;
-		if (mIsVertical) {
-			widthMeasureSpec = secondaryMeasureSpec;
+		if (!mItemsMatchParent) {
+			widthMeasureSpec = getChildWidthMeasureSpec(lp);
 			heightMeasureSpec = getChildHeightMeasureSpec(lp);
 		} else {
-			widthMeasureSpec = getChildWidthMeasureSpec(lp);
-			heightMeasureSpec = secondaryMeasureSpec;
+			if (mIsVertical) {
+				widthMeasureSpec = secondaryMeasureSpec;
+				heightMeasureSpec = getChildHeightMeasureSpec(lp);
+			} else {
+				widthMeasureSpec = getChildWidthMeasureSpec(lp);
+				heightMeasureSpec = secondaryMeasureSpec;
+			}
 		}
 
 		scrapChild.measure(widthMeasureSpec, heightMeasureSpec);
@@ -4880,6 +4903,40 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		return returnedHeight;
 	}
 
+	private int measureHeightOfChildrenMax(int widthMeasureSpec,
+			int startPosition, int endPosition, int maxHeight) {
+		int returnedHeight = 0;
+
+		final ListAdapter adapter = mAdapter;
+		if (adapter == null)
+			return returnedHeight;
+
+		int i;
+		View child;
+
+		// mItemCount - 1 since endPosition parameter is inclusive
+		endPosition = (endPosition == NO_POSITION) ? adapter.getCount() - 1
+				: endPosition;
+		final RecycleBin recycleBin = mRecycler;
+		final boolean shouldRecycle = recycleOnMeasure();
+		final boolean[] isScrap = mIsScrap;
+		final int padding = getPaddingBottom() + getPaddingTop();
+
+		for (i = startPosition; i <= endPosition; ++i) {
+			child = obtainView(i, isScrap);
+
+			measureScrapChild(child, i, widthMeasureSpec);
+			// Recycle the view before we possibly return from the method
+			if (shouldRecycle) {
+				recycleBin.addScrapView(child, -1);
+			}
+
+			returnedHeight = Math.max(child.getMeasuredHeight() + padding,
+					returnedHeight);
+		}
+		return Math.min(returnedHeight, maxHeight);
+	}
+
 	/**
 	 * Measures the width of the given range of children (inclusive) and returns
 	 * the width with this TwoWayView's padding and item margin widths included.
@@ -4979,6 +5036,40 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		// At this point, we went through the range of children, and they each
 		// completely fit, so return the returnedWidth
 		return returnedWidth;
+	}
+
+	private int measureWidthOfChildrenMax(int heightMeasureSpec,
+			int startPosition, int endPosition, int maxWidth) {
+		int returnedWidth = 0;
+
+		final ListAdapter adapter = mAdapter;
+		if (adapter == null)
+			return returnedWidth;
+
+		int i;
+		View child;
+
+		// mItemCount - 1 since endPosition parameter is inclusive
+		endPosition = (endPosition == NO_POSITION) ? adapter.getCount() - 1
+				: endPosition;
+		final RecycleBin recycleBin = mRecycler;
+		final boolean shouldRecycle = recycleOnMeasure();
+		final boolean[] isScrap = mIsScrap;
+		final int padding = getPaddingLeft() + getPaddingRight();
+
+		for (i = startPosition; i <= endPosition; ++i) {
+			child = obtainView(i, isScrap);
+
+			measureScrapChild(child, i, heightMeasureSpec);
+			// Recycle the view before we possibly return from the method
+			if (shouldRecycle) {
+				recycleBin.addScrapView(child, -1);
+			}
+
+			returnedWidth = Math.max(child.getMeasuredWidth() + padding,
+					returnedWidth);
+		}
+		return Math.min(returnedWidth, maxWidth);
 	}
 
 	private View makeAndAddView(int position, int offset, boolean flow,
