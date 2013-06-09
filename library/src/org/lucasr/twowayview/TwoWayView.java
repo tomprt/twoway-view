@@ -30,6 +30,7 @@ import android.content.res.TypedArray;
 import android.database.DataSetObserver;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.TransitionDrawable;
 import android.os.Build;
@@ -191,6 +192,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private Drawable mSelector;
 	private int mSelectorPosition;
 	private final Rect mSelectorRect;
+	// for API10 bug, ColorDrawble setBounds not working
+	private boolean mSelectorClip;
 
 	private int mOverScroll;
 	private final int mOverscrollDistance;
@@ -560,6 +563,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		}
 
 		mSelector = selector;
+		mSelectorClip = android.os.Build.VERSION.SDK_INT <= 10
+				&& selector instanceof ColorDrawable;
 		Rect padding = new Rect();
 		selector.getPadding(padding);
 
@@ -3413,8 +3418,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private void drawSelector(Canvas canvas) {
 		if (!mSelectorRect.isEmpty()) {
 			final Drawable selector = mSelector;
-			selector.setBounds(mSelectorRect);
+			final boolean clipSelector = mSelectorClip;
+			if (clipSelector) {
+				canvas.save();
+				canvas.clipRect(mSelectorRect);
+			} else {
+				selector.setBounds(mSelectorRect);
+			}
+
 			selector.draw(canvas);
+			if (clipSelector)
+				canvas.restore();
 		}
 	}
 
