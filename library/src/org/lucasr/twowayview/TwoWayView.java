@@ -142,6 +142,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private boolean mSelectionInCenter;
 	private int mCenter;
+	private boolean mSnapToCenter;
 
 	private Drawable mDivider;
 	private int mDividerSize;
@@ -446,6 +447,14 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	public boolean getSelectionInCenter() {
 		return mSelectionInCenter;
+	}
+
+	public void setSnapToCenter(boolean enabled) {
+		mSnapToCenter = enabled;
+	}
+
+	public boolean getSnapToCenter() {
+		return mSnapToCenter;
 	}
 
 	public void setItemsMatchParent(boolean match) {
@@ -1171,6 +1180,39 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			}
 		}
 		return INVALID_POSITION;
+	}
+
+	public boolean performSnapToCenter() {
+		/* calculate where to scroll */
+		final int count = getChildCount();
+		final int center = mCenter;
+
+		int offset = Integer.MAX_VALUE;
+		int position = INVALID_POSITION;
+		for (int i = 0; i < count; i++) {
+			final View child = getChildAt(i);
+			if (child.getVisibility() == View.VISIBLE && child.isEnabled()) {
+				int childCenter = (mIsVertical ? child.getTop()
+						+ (child.getHeight() / 2) : child.getLeft()
+						+ (child.getWidth() / 2));
+				int childOffset = center - childCenter;
+				if (Math.abs(childOffset) < Math.abs(offset)) {
+					offset = childOffset;
+					position = mFirstPosition + i;
+				}
+			}
+		}
+		/* do the scroll */
+		if (offset != 0) {
+			mTouchMode = TOUCH_MODE_FLINGING;
+			mLastTouchPos = 0; // why? copied from fling
+			mScroller.startScroll(0, 0, offset, 0, 300);
+			ViewCompat.postInvalidateOnAnimation(this);
+
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	@Override
@@ -2842,6 +2884,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			return;
 		}
 
+		if (mSnapToCenter && newState == OnScrollListener.SCROLL_STATE_IDLE) {
+			boolean snapping = performSnapToCenter();
+			if (snapping)
+				return;
+		}
 		if (mOnScrollListener != null) {
 			mLastScrollState = newState;
 			mOnScrollListener.onScrollStateChanged(this, newState);
