@@ -144,6 +144,9 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private int mCenter;
 	private boolean mSnapToCenter;
 
+	private Drawable mSelectedDivider;
+	private int mSelectedDividerSize;
+	private boolean mSelectedDividerClip;
 	private Drawable mDivider;
 	private int mDividerSize;
 	// for API10 bug, ColorDrawble setBounds not working
@@ -3887,83 +3890,97 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			drawSelector(canvas);
 		}
 
-		final int dividerSize = mDividerSize;
-		final boolean drawDividers = dividerSize > 0 && mDivider != null;
+		final int count = getChildCount();
+		final int first = mFirstPosition;
+		final int last = first + count - 1;
+
+		final int selectedPosition = mOldSelectedPosition;
+		View selectedChild = null;
+		if (selectedPosition > INVALID_POSITION
+				&& selectedPosition - first < count) {
+			selectedChild = getChildAt(selectedPosition - first);
+		}
+
+		boolean drawDividers = mDividerSize > 0 && mDivider != null;
+		boolean drawDividerSelected = (selectedChild != null
+				&& mSelectedDivider != null && getItemMargin(selectedPosition) > 0);
+		boolean drawDividersEmpty = (drawDividers && mEmptyItemsSize > 0 && (first == 0 || last == mItemCount - 1));
+		/*
+		 * prepare for drawing. set bounds borders that for the direction that
+		 * does not scroll
+		 */
+		final Rect bounds = mTempRect;
+		if (mIsVertical) {
+			bounds.left = getPaddingLeft();
+			bounds.right = getRight() - getLeft() - getPaddingRight();
+		} else {
+			bounds.top = getPaddingTop();
+			bounds.bottom = getBottom() - getTop() - getPaddingBottom();
+		}
 
 		if (drawDividers) {
-			final Rect bounds = mTempRect;
-			if (mIsVertical) {
-				bounds.left = getPaddingLeft();
-				bounds.right = getRight() - getLeft() - getPaddingRight();
-			} else {
-				bounds.top = getPaddingTop();
-				bounds.bottom = getBottom() - getTop() - getPaddingBottom();
-			}
-
-			final int count = getChildCount();
-			final int first = mFirstPosition;
-			final int last = first + count;
-
+			final Drawable divider = mDivider;
+			final boolean clip = mDividerClip;
 			for (int i = 0; i < count; i++) {
-				View child = getChildAt(i);
-				if (mIsVertical) {
-					int bottom = child.getBottom();
-					bounds.top = bottom;
-					bounds.bottom = bottom + dividerSize;
+				int pos = first + i;
+				if ((drawDividerSelected && (pos == selectedPosition || pos + 1 == selectedPosition))) { // ignore
+					// selected
 				} else {
-					int right = child.getRight();
-					bounds.left = right;
-					bounds.right = right + dividerSize;
-				}
-				drawDivider(canvas, bounds, i);
-			}
-			/* draw dividers before the first item */
-			if (first == 0) {
-				View firstChild = getChildAt(0);
-				final int start = (mIsVertical ? getPaddingTop()
-						: getPaddingLeft());
-				int dividerStart = (mIsVertical ? firstChild.getTop()
-						: firstChild.getLeft());
-				/* first iteration - draw missing divider before first item */
-				while (dividerStart > start) {
-					if (mIsVertical) {
-						bounds.bottom = dividerStart;
-						bounds.top = dividerStart + dividerSize;
-					} else {
-						bounds.right = dividerStart;
-						bounds.left = dividerStart + dividerSize;
-					}
-					drawDivider(canvas, bounds, -1);
-					/* continue drawing to fill screen? */
-					if (mEmptyItemsSize > 0)
-						dividerStart -= mEmptyItemsSize;
-					else
-						break;
+					setDividerBounds(bounds, getChildAt(i), getItemMargin(first
+							+ i), true);
+					drawDivider(canvas, bounds, divider, clip);
 				}
 			}
-			/* draw dividers after the last item */
-			if (last == mItemCount && mEmptyItemsSize > 0) {
-				View lastChild = getChildAt(last - first - 1);
-				final int end = (mIsVertical ? getHeight() - getPaddingBottom()
-						: getWidth() - getPaddingRight());
-				int dividerStart = (mIsVertical ? lastChild.getBottom()
-						: lastChild.getRight());
-				/* last item divider is already drawn */
-				dividerStart += mEmptyItemsSize;
-				while (dividerStart < end) {
-					if (mIsVertical) {
-						bounds.top = dividerStart;
-						bounds.bottom = dividerStart + dividerSize;
-					} else {
-						bounds.left = dividerStart;
-						bounds.right = dividerStart + dividerSize;
-					}
-					drawDivider(canvas, bounds, -1);
-					dividerStart += mEmptyItemsSize;
-				}
+			// fill divider before first item
+			if (first == 0 && selectedPosition != 0) {
+				setDividerBounds(bounds, getChildAt(0), getItemMargin(0), false);
+				drawDivider(canvas, bounds, divider, clip);
 			}
 
 		}
+		if (drawDividerSelected) {
+			final Drawable divider = mSelectedDivider;
+			final boolean clip = mSelectedDividerClip;
+			final int size = getItemMargin(selectedPosition);
+
+			setDividerBounds(bounds, selectedChild, size, true);
+			drawDivider(canvas, bounds, divider, clip);
+			setDividerBounds(bounds, selectedChild, size, false);
+			drawDivider(canvas, bounds, divider, clip);
+		}
+		if (drawDividersEmpty) {
+			final Drawable divider = mDivider;
+			final boolean clip = mDividerClip;
+			final int size = mDividerSize;
+			final int space = mEmptyItemsSize;
+
+			if (first == 0) {
+				final int end = (mIsVertical ? getPaddingTop()
+						: getPaddingLeft());
+				int drawStart = (mIsVertical ? getChildAt(0).getTop()
+						: getChildAt(0).getLeft())
+						- getItemMargin(last)
+						- space;
+				while (drawStart > end) {
+					setDividerBounds(bounds, drawStart, size, false);
+					drawDivider(canvas, bounds, divider, clip);
+					drawStart -= space;
+				}
+			}
+			if (last == mItemCount - 1) {
+				final int end = (mIsVertical ? getHeight() - getPaddingBottom()
+						: getWidth() - getPaddingRight());
+				final View lastView = getChildAt(count - 1);
+				int drawStart = (mIsVertical ? lastView.getBottom() : lastView
+						.getRight()) + getItemMargin(last) + space;
+				while (drawStart < end) {
+					setDividerBounds(bounds, drawStart, size, true);
+					drawDivider(canvas, bounds, divider, clip);
+					drawStart += space;
+				}
+			}
+		}
+
 	}
 
 	@Override
@@ -4262,7 +4279,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 								+ ")]");
 			}
 
-			setSelectedPositionInt(mNextSelectedPosition);
+			if (mNextSelectedPosition != INVALID_POSITION)
+				setSelectedPositionInt(mNextSelectedPosition);
+			else
+				setSelectedPositionInt(mOldSelectedPosition);
 
 			// Reset the focus restoration
 			View focusLayoutRestoreDirectChild = null;
@@ -4509,7 +4529,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			oldSelected = makeAndAddView(selectedPosition - 1,
 					oldSelectedStart, true, false);
 
-			final int itemMargin = mDividerSize;
+			final int itemMargin = getItemMargin(selectedPosition);
 
 			// Now put the new selection (B) below that
 			selected = makeAndAddView(selectedPosition, oldSelectedEnd
@@ -5039,7 +5059,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		// Include the padding of the list
 		int returnedHeight = paddingTop + paddingBottom;
-		final int itemMargin = mDividerSize;
 
 		// The previous height value that was less than maxHeight and contained
 		// no partial children
@@ -5061,7 +5080,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 			if (i > 0) {
 				// Count the item margin for all but one child
-				returnedHeight += itemMargin;
+				returnedHeight += getItemMargin(startPosition + i);
 			}
 
 			// Recycle the view before we possibly return from the method
@@ -5174,7 +5193,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		// Include the padding of the list
 		int returnedWidth = paddingLeft + paddingRight;
-		final int itemMargin = mDividerSize;
 
 		// The previous height value that was less than maxHeight and contained
 		// no partial children
@@ -5196,7 +5214,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 			if (i > 0) {
 				// Count the item margin for all but one child
-				returnedWidth += itemMargin;
+				returnedWidth += getItemMargin(startPosition + i);
 			}
 
 			// Recycle the view before we possibly return from the method
@@ -5386,8 +5404,9 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				lastEnd = getChildAt(childCount - 1).getRight();
 			}
 
-			final int offset = (childCount > 0 ? lastEnd + mDividerSize
-					: paddingStart);
+			final int lastPosition = mFirstPosition + childCount - 1;
+			final int offset = childCount > 0 ? lastEnd
+					+ getItemMargin(lastPosition) : paddingStart;
 			fillAfter(mFirstPosition + childCount, offset);
 			correctTooHigh(getChildCount());
 		} else {
@@ -5402,8 +5421,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				firstStart = getChildAt(0).getLeft();
 			}
 
-			final int offset = (childCount > 0 ? firstStart - mDividerSize
-					: end);
+			final int offset = childCount > 0 ? firstStart
+					- getItemMargin(mFirstPosition) : end;
 			fillBefore(mFirstPosition - 1, offset);
 			correctTooLow(getChildCount());
 		}
@@ -5434,10 +5453,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				}
 			}
 
+			final int ItemMargin = getItemMargin(pos);
 			if (mIsVertical) {
-				nextOffset = child.getTop() - mDividerSize;
+				nextOffset = child.getTop() - ItemMargin;
 			} else {
-				nextOffset = child.getLeft() - mDividerSize;
+				nextOffset = child.getLeft() - ItemMargin;
 			}
 
 			if (isSelected) {
@@ -5478,10 +5498,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				}
 			}
 
+			final int ItemMargin = getItemMargin(pos);
 			if (mIsVertical) {
-				nextOffset = child.getBottom() + mDividerSize;
+				nextOffset = child.getBottom() + ItemMargin;
 			} else {
-				nextOffset = child.getRight() + mDividerSize;
+				nextOffset = child.getRight() + ItemMargin;
 			}
 
 			if (selected) {
@@ -5501,7 +5522,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		// Possibly changed again in fillBefore if we add rows above this one.
 		mFirstPosition = position;
 
-		final int itemMargin = mDividerSize;
+		final int itemMargin = getItemMargin(position);
 
 		final int offsetBefore;
 		if (mIsVertical) {
@@ -5585,7 +5606,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	}
 
 	private void fillBeforeAndAfter(View selected, int position) {
-		final int itemMargin = mDividerSize;
+		final int itemMargin = getItemMargin(position);
 
 		final int offsetBefore;
 		if (mIsVertical) {
@@ -5714,7 +5735,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				// Fill the gap that was opened above mFirstPosition with more
 				// rows, if
 				// possible
-				fillBefore(mFirstPosition - 1, firstStart - mDividerSize);
+				final int itemMargin = getItemMargin(mFirstPosition);
+				fillBefore(mFirstPosition - 1, firstStart - itemMargin);
 
 				// Close up the remaining gap
 				adjustViewsStartOrEnd();
@@ -5779,7 +5801,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 					// Fill the gap that was opened below the last position with
 					// more rows, if
 					// possible
-					fillAfter(lastPosition + 1, lastEnd + mDividerSize);
+					final int itemMargin = getItemMargin(lastPosition);
+					fillAfter(lastPosition + 1, lastEnd + itemMargin);
 
 					// Close up the remaining gap
 					adjustViewsStartOrEnd();
@@ -5818,10 +5841,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				offsetChildren(-delta);
 			}
 		} else {
+			final int itemMargin = getItemMargin(mFirstPosition);
 			if (mIsVertical) {
-				delta = firstChild.getTop() - getPaddingTop() - mDividerSize;
+				delta = firstChild.getTop() - getPaddingTop() - itemMargin;
 			} else {
-				delta = firstChild.getLeft() - getPaddingLeft() - mDividerSize;
+				delta = firstChild.getLeft() - getPaddingLeft() - itemMargin;
 			}
 
 			if (delta < 0) {
@@ -7234,6 +7258,24 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		invalidate();
 	}
 
+	public void setDividerSelectedItem(Drawable divider,
+			boolean dividerIsVertical) {
+		if (divider != null) {
+			final int newSize = dividerIsVertical ? divider
+					.getIntrinsicHeight() : divider.getIntrinsicWidth();
+			if (newSize > -1)
+				mSelectedDividerSize = newSize;
+		} else {
+			mSelectedDividerSize = 0;
+		}
+		mSelectedDivider = divider;
+		mSelectedDividerClip = android.os.Build.VERSION.SDK_INT <= 10
+				&& divider instanceof ColorDrawable;
+
+		requestLayout();
+		invalidate();
+	}
+
 	/**
 	 * Returns the drawable that will be drawn between each item in the list.
 	 * 
@@ -7241,6 +7283,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	 */
 	public Drawable getDivider() {
 		return mDivider;
+	}
+
+	public Drawable getDividerSelectedItem() {
+		return mSelectedDivider;
 	}
 
 	/**
@@ -7257,12 +7303,31 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		invalidate();
 	}
 
+	public void setDividerSizeSelectedItem(int size) {
+		mSelectedDividerSize = size;
+		requestLayout();
+		invalidate();
+	}
+
 	/**
 	 * @return Returns the size of the divider that will be drawn between each
 	 *         item in the list.
 	 */
 	public int getDividerSize() {
 		return mDividerSize;
+	}
+
+	public int getDividerSizeSelectedItem() {
+		return mSelectedDividerSize;
+	}
+
+	public int getItemMargin(int position) {
+		if (mSelectedDividerSize > 0
+				&& (position == mSelectedPosition
+						|| position == mNextSelectedPosition || position == mOldSelectedPosition))
+			return mSelectedDividerSize;
+		else
+			return mDividerSize;
 	}
 
 	/**
@@ -7286,21 +7351,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		return mEmptyItemsSize;
 	}
 
-	/**
-	 * Draws a divider for the given child in the given bounds.
-	 * 
-	 * @param canvas
-	 *            The canvas to draw to.
-	 * @param bounds
-	 *            The bounds of the divider.
-	 * @param childIndex
-	 *            The index of child (of the View) above the divider. This will
-	 *            be -1 if there is no child above the divider to be drawn.
-	 */
-	void drawDivider(Canvas canvas, Rect bounds, int childIndex) {
-		final Drawable divider = mDivider;
-		final boolean clipDivider = mDividerClip;
-
+	void drawDivider(Canvas canvas, Rect bounds, Drawable divider,
+			boolean clipDivider) {
 		if (clipDivider) {
 			canvas.save();
 			canvas.clipRect(bounds);
@@ -7313,5 +7365,48 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		if (clipDivider)
 			canvas.restore();
 
+	}
+
+	/** Sets mTempRect to the right/bottom edge of the view + size */
+	private void setDividerBounds(Rect bounds, View view, int size,
+			boolean forward) {
+		final int start;
+		if (mIsVertical) {
+			if (forward) {
+				start = view.getBottom();
+			} else {
+				start = view.getTop();
+			}
+		} else {
+			if (forward) {
+				start = view.getRight();
+			} else {
+				start = view.getLeft();
+			}
+		}
+
+		setDividerBounds(bounds, start, size, forward);
+	}
+
+	private void setDividerBounds(Rect bounds, int start, int size,
+			boolean forward) {
+		if (mIsVertical) {
+			if (forward) {
+				bounds.top = start;
+				bounds.bottom = start + size;
+			} else {
+				bounds.bottom = start;
+				bounds.top = start - size;
+
+			}
+		} else {
+			if (forward) {
+				bounds.left = start;
+				bounds.right = start + size;
+			} else {
+				bounds.right = start;
+				bounds.left = start - size;
+			}
+		}
 	}
 }
