@@ -4345,7 +4345,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				break;
 
 			case LAYOUT_SYNC:
-				selected = fillSpecific(mSyncPosition, mSpecificStart);
+				if (mSelectionInCenter)
+					selected = fillSpecific(mSyncPosition, mCenter);
+				else
+					selected = fillSpecific(mSyncPosition, mSpecificStart);
 				break;
 
 			case LAYOUT_FORCE_BOTTOM:
@@ -4381,16 +4384,23 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				if (childCount == 0) {
 					final int position = lookForSelectablePosition(0);
 					setSelectedPositionInt(position);
-					selected = fillFromOffset(start);
+					if (mSelectionInCenter)
+						selected = fillFromOffset(mCenter);
+					else
+						selected = fillFromOffset(start);
 				} else {
 					if (mSelectedPosition >= 0
 							&& mSelectedPosition < mItemCount) {
-						int offset = start;
-						if (oldSelected != null) {
-							offset = (mIsVertical ? oldSelected.getTop()
-									: oldSelected.getLeft());
+						if (mSelectionInCenter) {
+							selected = fillSpecific(mSelectedPosition, mCenter);
+						} else {
+							int offset = start;
+							if (oldSelected != null) {
+								offset = (mIsVertical ? oldSelected.getTop()
+										: oldSelected.getLeft());
+							}
+							selected = fillSpecific(mSelectedPosition, offset);
 						}
-						selected = fillSpecific(mSelectedPosition, offset);
 					} else if (mFirstPosition < mItemCount) {
 						int offset = start;
 						if (oldFirstChild != null) {
@@ -5518,6 +5528,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private View fillSpecific(int position, int offset) {
 		final boolean tempIsSelected = (position == mSelectedPosition);
 		View temp = makeAndAddView(position, offset, true, tempIsSelected);
+
+		/* give it a push so the view's center is in the center */
+		if (mSelectionInCenter == true && offset == mCenter) {
+			if (mIsVertical) {
+				int distance = temp.getMeasuredHeight() / 2;
+				temp.offsetTopAndBottom(-distance);
+			} else {
+				int distance = temp.getMeasuredWidth() / 2;
+				temp.offsetLeftAndRight(-distance);
+			}
+		}
 
 		// Possibly changed again in fillBefore if we add rows above this one.
 		mFirstPosition = position;
