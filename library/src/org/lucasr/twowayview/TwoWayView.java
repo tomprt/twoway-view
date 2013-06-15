@@ -3905,6 +3905,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		boolean drawDividerSelected = (selectedChild != null
 				&& mSelectedDivider != null && getItemMargin(selectedPosition) > 0);
 		boolean drawDividersEmpty = (drawDividers && mEmptyItemsSize > 0 && (first == 0 || last == mItemCount - 1));
+
+		/* fix random crash */
+		if (count == 0)
+			return;
+
 		/*
 		 * prepare for drawing. set bounds borders that for the direction that
 		 * does not scroll
