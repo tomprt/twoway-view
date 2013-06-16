@@ -5330,6 +5330,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				setupChild(activeChild, position, top, left, flow, selected,
 						true);
 
+				activeChild.setSelected(selected);
 				return activeChild;
 			}
 		}
@@ -5340,6 +5341,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 		// This needs to be positioned and measured
 		setupChild(child, position, top, left, flow, selected, mIsScrap[0]);
+		child.setSelected(selected);
 
 		return child;
 	}
