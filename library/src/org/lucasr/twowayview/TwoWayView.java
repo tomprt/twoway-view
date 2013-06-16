@@ -2890,15 +2890,16 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	}
 
 	private void reportScrollStateChange(int newState) {
-		if (newState == mLastScrollState) {
-			return;
-		}
-
 		if (mSnapToCenter && newState == OnScrollListener.SCROLL_STATE_IDLE) {
 			boolean snapping = performSnapToCenter();
 			if (snapping)
 				return;
 		}
+
+		if (newState == mLastScrollState) {
+			return;
+		}
+
 		if (mOnScrollListener != null) {
 			mLastScrollState = newState;
 			mOnScrollListener.onScrollStateChanged(this, newState);
