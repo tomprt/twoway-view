@@ -890,9 +890,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			setSelectedPositionInt(position);
 			setNextSelectedPositionInt(position);
 
-			if (mItemCount == 0) {
-				checkSelectionChanged();
-			}
+			checkSelectionChanged();
 		} else {
 			mItemCount = 0;
 			mHasStableIds = false;
@@ -1205,12 +1203,21 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				}
 			}
 		}
-		/* do the scroll */
-		if (offset != 0) {
+		if (offset != 0 || mSelectedPosition != position) {
+			/* do the scroll */
 			mTouchMode = TOUCH_MODE_FLINGING;
 			mLastTouchPos = 0; // why? copied from fling
 			mScroller.startScroll(0, 0, offset, 0, 300);
 			ViewCompat.postInvalidateOnAnimation(this);
+
+			/* select the center item */
+			mSelectedPosition = mSelectedPosition > INVALID_POSITION ? mSelectedPosition
+					: position; // old selection
+			mNextSelectedPosition = position; // new selection
+			checkSelectionChanged();
+
+			mLayoutMode = LAYOUT_SET_SELECTION;
+			layoutChildren();
 
 			return true;
 		} else {
@@ -3561,8 +3568,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				mResurrectToPosition = mNextSelectedPosition;
 			}
 
-			setSelectedPositionInt(INVALID_POSITION);
-			setNextSelectedPositionInt(INVALID_POSITION);
+			// setSelectedPositionInt(INVALID_POSITION);
+			// setNextSelectedPositionInt(INVALID_POSITION);
 
 			mSelectedStart = 0;
 		}
@@ -3735,7 +3742,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private int lookForSelectablePosition(int position, boolean lookDown) {
 		final ListAdapter adapter = mAdapter;
-		if (adapter == null || isInTouchMode()) {
+		if (adapter == null) {
 			return INVALID_POSITION;
 		}
 
@@ -3894,7 +3901,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		final int first = mFirstPosition;
 		final int last = first + count - 1;
 
-		final int selectedPosition = mOldSelectedPosition;
+		final int selectedPosition = mSelectedPosition;
 		View selectedChild = null;
 		if (selectedPosition > INVALID_POSITION
 				&& selectedPosition - first < count) {
@@ -4025,7 +4032,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	@Override
 	public void setSelection(int position) {
-		setSelectionFromOffset(position, 0);
+		final int offset = mSelectionInCenter ? mCenter : 0;
+		setSelectionFromOffset(position, offset);
 	}
 
 	public void setSelectionFromOffset(int position, int offset) {
@@ -4033,22 +4041,18 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			return;
 		}
 
-		if (!isInTouchMode()) {
-			position = lookForSelectablePosition(position);
-			if (position >= 0) {
-				setNextSelectedPositionInt(position);
-			}
-		} else {
-			mResurrectToPosition = position;
-		}
+		setNextSelectedPositionInt(position);
 
 		if (position >= 0) {
 			mLayoutMode = LAYOUT_SPECIFIC;
-
-			if (mIsVertical) {
-				mSpecificStart = getPaddingTop() + offset;
+			if (mSelectionInCenter && offset == mCenter) {
+				mSpecificStart = offset;
 			} else {
-				mSpecificStart = getPaddingLeft() + offset;
+				if (mIsVertical) {
+					mSpecificStart = getPaddingTop() + offset;
+				} else {
+					mSpecificStart = getPaddingLeft() + offset;
+				}
 			}
 
 			if (mNeedSync) {
@@ -4827,6 +4831,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				if (mResurrectToPosition >= 0) {
 					return;
 				}
+				// We have a valid selection
+				if (mNextSelectedPosition >= 0
+						&& mNextSelectedPosition < itemCount)
+					return;
 			}
 		}
 
@@ -6314,6 +6322,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		mSyncHeight = ss.height;
 
 		if (ss.selectedId >= 0) {
+			/* set selection */
+			setSelectedPositionInt(ss.position);
+			setNextSelectedPositionInt(ss.position);
+
 			mNeedSync = true;
 			mPendingSync = ss;
 			mSyncRowId = ss.selectedId;
