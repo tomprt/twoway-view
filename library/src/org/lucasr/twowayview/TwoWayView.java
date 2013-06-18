@@ -154,6 +154,11 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	// space between dividers drawn before first item / after last item
 	private int mEmptyItemsSize;
 
+	private Drawable mCenterDivider;
+	private int mCenterDividerSize;
+	private boolean mCenterDividerClip;
+	private int mCenterDividerSpacing; // between the 2 dividers
+
 	private boolean mItemsMatchParent;
 
 	private boolean mInLayout;
@@ -3913,6 +3918,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		boolean drawDividerSelected = (selectedChild != null
 				&& mSelectedDivider != null && getItemMargin(selectedPosition) > 0);
 		boolean drawDividersEmpty = (drawDividers && mEmptyItemsSize > 0 && (first == 0 || last == mItemCount - 1));
+		boolean drawDividerCenter = mCenterDivider != null
+				&& mCenterDividerSize > 0 && mCenterDividerSpacing > 0;
 
 		/* fix random crash */
 		if (count == 0)
@@ -3992,6 +3999,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 					drawStart += space;
 				}
 			}
+		}
+		if (drawDividerCenter) {
+			final Drawable divider = mCenterDivider;
+			final boolean clip = mCenterDividerClip;
+			final int size = mCenterDividerSize;
+			final int distance = mCenterDividerSpacing;
+
+			setDividerBounds(bounds, mCenter - distance / 2, size, false);
+			drawDivider(canvas, bounds, divider, clip);
+			setDividerBounds(bounds, mCenter + distance / 2, size, true);
+			drawDivider(canvas, bounds, divider, clip);
 		}
 
 	}
@@ -7317,6 +7335,24 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		invalidate();
 	}
 
+	public void setDividerCenter(Drawable divider, boolean dividerIsVertical) {
+		if (divider != null) {
+			final int newSize = dividerIsVertical ? divider
+					.getIntrinsicHeight() : divider.getIntrinsicWidth();
+			if (newSize > -1)
+				mCenterDividerSize = newSize;
+		} else {
+			mCenterDividerSize = 0;
+		}
+		mCenterDivider = divider;
+		mCenterDividerClip = android.os.Build.VERSION.SDK_INT <= 10
+				&& divider instanceof ColorDrawable;
+
+		requestLayout();
+		invalidate();
+
+	}
+
 	/**
 	 * Returns the drawable that will be drawn between each item in the list.
 	 * 
@@ -7328,6 +7364,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	public Drawable getDividerSelectedItem() {
 		return mSelectedDivider;
+	}
+
+	public Drawable getDividerCenter() {
+		return mCenterDivider;
 	}
 
 	/**
@@ -7346,6 +7386,12 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	public void setDividerSizeSelectedItem(int size) {
 		mSelectedDividerSize = size;
+		requestLayout();
+		invalidate();
+	}
+
+	public void setDividerSizeCenter(int size) {
+		mCenterDividerSize = size;
 		requestLayout();
 		invalidate();
 	}
@@ -7371,6 +7417,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			return mDividerSize;
 	}
 
+	public int getDividerSizeCenter() {
+		return mCenterDividerSize;
+	}
+
 	/**
 	 * Sets the distance between dividers drawn before the first last / after
 	 * last item. 0 disables filling the view with dividers.
@@ -7390,6 +7440,15 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	 */
 	public int getEmptyItemSize() {
 		return mEmptyItemsSize;
+	}
+
+	public void setDividerSpacingCenter(int space) {
+		mCenterDividerSpacing = space;
+		invalidate();
+	}
+
+	public int getDividerSpacingCenter() {
+		return mCenterDividerSpacing;
 	}
 
 	void drawDivider(Canvas canvas, Rect bounds, Drawable divider,
