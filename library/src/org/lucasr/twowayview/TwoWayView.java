@@ -128,7 +128,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private static final int MIN_SCROLL_PREVIEW_PIXELS = 10;
 
-	private static final int SNAP_DURATION = 300;
+	private static final int SNAP_DURATION = 400;
 
 	public static enum ChoiceMode {
 		NONE, SINGLE, MULTIPLE
@@ -4498,7 +4498,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				} else {
 					if (mSelectedPosition >= 0
 							&& mSelectedPosition < mItemCount) {
-						if (mSelectionInCenter) {
+						if (mSelectionInCenter && mScroller.isFinished()) {
 							selected = fillSpecific(mSelectedPosition, mCenter);
 						} else {
 							int offset = start;
