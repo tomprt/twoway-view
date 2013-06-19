@@ -128,6 +128,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
 	private static final int MIN_SCROLL_PREVIEW_PIXELS = 10;
 
+	private static final int SNAP_DURATION = 300;
+
 	public static enum ChoiceMode {
 		NONE, SINGLE, MULTIPLE
 	}
@@ -1188,33 +1190,78 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		return INVALID_POSITION;
 	}
 
+	/**
+	 * for a visible view calculate distance from child's center to the center
+	 * of the list
+	 */
+	private int childOffsetFromCenter(View child) {
+		final int childSize = mIsVertical ? child.getHeight() : child
+				.getWidth();
+		final int childCenter = (mIsVertical ? child.getTop() : child.getLeft())
+				+ childSize / 2;
+		final int childOffset = mCenter - childCenter;
+
+		return childOffset;
+	}
+
 	public boolean performSnapToCenter() {
 		/* calculate where to scroll */
+
 		final int count = getChildCount();
 		final int center = mCenter;
-
 		int offset = Integer.MAX_VALUE;
 		int position = INVALID_POSITION;
-		for (int i = 0; i < count; i++) {
-			final View child = getChildAt(i);
-			if (child.getVisibility() == View.VISIBLE && child.isEnabled()) {
-				int childCenter = (mIsVertical ? child.getTop()
-						+ (child.getHeight() / 2) : child.getLeft()
-						+ (child.getWidth() / 2));
-				int childOffset = center - childCenter;
-				if (Math.abs(childOffset) < Math.abs(offset)) {
-					offset = childOffset;
-					position = mFirstPosition + i;
+
+		/* selected item is in view */
+		final int selected = mSelectedPosition;
+		if (selected >= mFirstPosition && selected <= mFirstPosition + count) {
+			/* how far it moved */
+			final int selectedIndex = mSelectedPosition - mFirstPosition;
+			final View selectedChild = getChildAt(selectedIndex);
+			if (selectedChild != null) {
+				final int selectedOffset = childOffsetFromCenter(selectedChild);
+				final int childSize = (mIsVertical ? selectedChild.getHeight()
+						: selectedChild.getWidth());
+				/* moved more then 25% thats enough to jump to next */
+				if (Math.abs(selectedOffset) > childSize / 4
+						&& Math.abs(selectedOffset) <= childSize / 2) {
+					if (selectedOffset > 0) {
+						position = selected + 1;
+						offset = childOffsetFromCenter(getChildAt(selectedIndex + 1));
+					} else if (selectedOffset < 0) {
+						position = selected - 1;
+						offset = childOffsetFromCenter(getChildAt(selectedIndex - 1));
+					}
+				}
+			}
+
+		}
+
+		if (offset == Integer.MAX_VALUE) {
+			for (int i = 0; i < count; i++) {
+				final View child = getChildAt(i);
+				if (child.getVisibility() == View.VISIBLE && child.isEnabled()) {
+					int childSize = mIsVertical ? child.getHeight() : child
+							.getWidth();
+					int childCenter = (mIsVertical ? child.getTop() : child
+							.getLeft()) + childSize / 2;
+
+					int childOffset = center - childCenter;
+					if (Math.abs(childOffset) < Math.abs(offset)) {
+						offset = childOffset;
+						position = mFirstPosition + i;
+					}
 				}
 			}
 		}
-		if (offset != 0 || mSelectedPosition != position) {
+		if (offset != 0) {
 			/* do the scroll */
 			mTouchMode = TOUCH_MODE_FLINGING;
 			mLastTouchPos = 0; // why? copied from fling
-			mScroller.startScroll(0, 0, offset, 0, 300);
+			mScroller.startScroll(0, 0, offset, 0, SNAP_DURATION);
 			ViewCompat.postInvalidateOnAnimation(this);
-
+		}
+		if (offset != 0 || mSelectedPosition != position) {
 			/* select the center item */
 			mSelectedPosition = mSelectedPosition > INVALID_POSITION ? mSelectedPosition
 					: position; // old selection
