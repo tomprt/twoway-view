@@ -450,6 +450,35 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 		updateScrollbarsDirection();
 	}
 
+	public void scrollToItem(int position) {
+		final int start = mSelectionInCenter ? mSelectedPosition
+				: mFirstPosition;
+
+		final int itemsToScroll = position - start;
+		int distance = 0;
+		if (itemsToScroll > 0) {
+			for (int i = start; i < start + itemsToScroll; i++) {
+				View child = obtainView(i, mIsScrap);
+				measureChild(child);
+				distance -= mIsVertical ? child.getMeasuredHeight() : child
+						.getMeasuredWidth();
+			}
+		} else {
+			for (int i = start; i > start + itemsToScroll; i--) {
+				View child = obtainView(i, mIsScrap);
+				measureChild(child);
+				distance += mIsVertical ? child.getMeasuredHeight() : child
+						.getMeasuredWidth();
+			}
+		}
+		if (distance != 0) {
+			mTouchMode = TOUCH_MODE_FLINGING;
+			mLastTouchPos = 0; // why? copied from fling
+			mScroller.startScroll(0, 0, distance, 0, SNAP_DURATION);
+			ViewCompat.postInvalidateOnAnimation(this);
+		}
+	}
+
 	public void setSelectionInCenter(boolean center) {
 		mSelectionInCenter = center;
 		invalidate();
