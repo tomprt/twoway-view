@@ -455,6 +455,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				: mFirstPosition;
 
 		final int itemsToScroll = position - start;
+		final RecycleBin recyler = mRecycler;
 		int distance = 0;
 		if (itemsToScroll > 0) {
 			for (int i = start; i < start + itemsToScroll; i++) {
@@ -462,6 +463,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				measureChild(child);
 				distance -= mIsVertical ? child.getMeasuredHeight() : child
 						.getMeasuredWidth();
+				recyler.addScrapView(child, start + i);
 			}
 		} else {
 			for (int i = start; i > start + itemsToScroll; i--) {
@@ -469,6 +471,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				measureChild(child);
 				distance += mIsVertical ? child.getMeasuredHeight() : child
 						.getMeasuredWidth();
+				recyler.addScrapView(child, start - i);
 			}
 		}
 		if (distance != 0) {
