@@ -161,6 +161,9 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 	private boolean mCenterDividerClip;
 	private int mCenterDividerSpacing; // between the 2 dividers
 
+	private boolean mPlaySoundOnScroll; // as item moves through center
+	private int mLastSoundPosition;
+
 	private boolean mItemsMatchParent;
 
 	private boolean mInLayout;
@@ -480,6 +483,14 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			mScroller.startScroll(0, 0, distance, 0, SNAP_DURATION);
 			ViewCompat.postInvalidateOnAnimation(this);
 		}
+	}
+
+	public void setPlaySoundOnScroll(boolean playSound) {
+		mPlaySoundOnScroll = playSound;
+	}
+
+	public boolean getPlaySoundOnScroll() {
+		return mPlaySoundOnScroll;
 	}
 
 	public void setSelectionInCenter(boolean center) {
@@ -3439,6 +3450,47 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			}
 		}
 
+		if (mPlaySoundOnScroll) {
+			/* Play sound effect for every item that moves through the center */
+			final boolean isVertical = mIsVertical;
+			if (down) {
+				final int soundEffect = isVertical ? SoundEffectConstants.NAVIGATION_DOWN
+						: SoundEffectConstants.NAVIGATION_RIGHT;
+				for (int i = 0; i < childCount; i++) {
+					final View child = getChildAt(i);
+					final int childStart = (isVertical ? child.getTop() : child
+							.getLeft());
+					final int childCenter = childStart
+							+ (isVertical ? child.getHeight() : child
+									.getWidth()) / 2;
+					if (mLastSoundPosition != mFirstPosition + i
+							&& childCenter >= center
+							&& childCenter + incrementalDelta <= center) {
+						playSoundEffect(soundEffect);
+						mLastSoundPosition = mFirstPosition + i;
+					}
+				}
+			} else {
+				final int soundEffect = isVertical ? SoundEffectConstants.NAVIGATION_UP
+						: SoundEffectConstants.NAVIGATION_LEFT;
+				for (int i = childCount - 1; i >= 0; i--) {
+					final View child = getChildAt(i);
+					final int childStart = (isVertical ? child.getTop() : child
+							.getLeft());
+					final int childCenter = childStart
+							+ (isVertical ? child.getHeight() : child
+									.getWidth()) / 2;
+					if (mLastSoundPosition != mFirstPosition + i
+							&& childCenter <= center
+							&& childCenter + incrementalDelta >= center) {
+						playSoundEffect(soundEffect);
+						mLastSoundPosition = mFirstPosition + i;
+					}
+				}
+			}
+
+		}
+
 		mBlockLayoutRequests = true;
 
 		if (count > 0) {
@@ -6281,7 +6333,15 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			updateOnScreenCheckedViews();
 		}
 
-		return super.performItemClick(view, position, id);
+		if (mPlaySoundOnScroll) {
+			// for my sepecific use case: click on item scrolls to it , dont
+			// want the click sound effect
+			setSoundEffectsEnabled(false);
+			boolean result = super.performItemClick(view, position, id);
+			setSoundEffectsEnabled(true);
+			return result;
+		} else
+			return super.performItemClick(view, position, id);
 	}
 
 	private boolean performLongPress(final View child,
