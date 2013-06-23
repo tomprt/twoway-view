@@ -24,6 +24,7 @@ package org.lucasr.twowayview;
 import java.util.ArrayList;
 import java.util.List;
 
+import tomprt.android.edge.EdgeEffectCompat;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -46,7 +47,6 @@ import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.VelocityTrackerCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.accessibility.AccessibilityNodeInfoCompat;
-import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseBooleanArray;
