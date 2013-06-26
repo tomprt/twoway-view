@@ -1314,7 +1314,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 			mLayoutMode = LAYOUT_SET_SELECTION;
 			layoutChildren();
 
-			return true;
+			return (offset != 0);
 		} else {
 			return false;
 		}
