@@ -4083,7 +4083,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 				}
 			}
 			// fill divider before first item
-			if (first == 0 && selectedPosition != 0) {
+			if (first == 0 && (selectedPosition != 0 || !drawDividerSelected)) {
 				setDividerBounds(bounds, getChildAt(0), getItemMargin(0), false);
 				drawDivider(canvas, bounds, divider, clip);
 			}
